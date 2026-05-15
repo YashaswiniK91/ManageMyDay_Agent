@@ -3,6 +3,8 @@ const router = express.Router();
 const TokenStorage = require('../../utils/TokenStorage');
 const ChatBotHandler = require('../../handlers/ChatBotHandler');
 const CalendarService = require('../../services/CalendarService');
+const GmailService = require('../../services/GmailService');
+const DriveService = require('../../services/DriveService');
 
 const tokenStorage = new TokenStorage('memory');
 
@@ -35,6 +37,36 @@ const authenticateUser = async (req, res, next) => {
 };
 
 /**
+ * Initialize chatbot with all services
+ */
+const initializeChatBot = (authToken) => {
+  const chatBot = new ChatBotHandler(authToken);
+  
+  try {
+    const calendarService = new CalendarService(authToken);
+    chatBot.registerService('calendar', calendarService);
+  } catch (error) {
+    console.error('Error initializing Calendar Service:', error);
+  }
+
+  try {
+    const gmailService = new GmailService(authToken);
+    chatBot.registerService('gmail', gmailService);
+  } catch (error) {
+    console.error('Error initializing Gmail Service:', error);
+  }
+
+  try {
+    const driveService = new DriveService(authToken);
+    chatBot.registerService('drive', driveService);
+  } catch (error) {
+    console.error('Error initializing Drive Service:', error);
+  }
+
+  return chatBot;
+};
+
+/**
  * Handle incoming Google Chat message
  * POST /chatbot/message
  * Body: { text: "What's my schedule today?", userId: "user-id" }
@@ -50,13 +82,8 @@ router.post('/message', authenticateUser, async (req, res) => {
   }
 
   try {
-    // Initialize chatbot handler
-    const chatBot = new ChatBotHandler(req.authToken);
-    
-    // Initialize services
-    const calendarService = new CalendarService(req.authToken);
-    chatBot.registerService('calendar', calendarService);
-    // TODO: Register Gmail and Drive services
+    // Initialize chatbot with all services
+    const chatBot = initializeChatBot(req.authToken);
     
     // Process message
     const message = { text, thread: req.body.thread };
@@ -75,42 +102,6 @@ router.post('/message', authenticateUser, async (req, res) => {
       error: 'Message processing failed',
       message: error.message,
       userMessage: text,
-    });
-  }
-});
-
-/**
- * Google Chat webhook endpoint (for real integration)
- * POST /chatbot/webhook
- * This would receive messages directly from Google Chat API
- */
-router.post('/webhook', authenticateUser, async (req, res) => {
-  try {
-    const message = req.body;
-
-    // Verify webhook signature (TODO: implement in production)
-    
-    // For now, extract user ID from message
-    const userId = message.user?.email?.split('@')[0] || 'default-user';
-    req.userId = userId;
-
-    // Process the message
-    const chatBot = new ChatBotHandler(req.authToken);
-    const calendarService = new CalendarService(req.authToken);
-    chatBot.registerService('calendar', calendarService);
-
-    const response = await chatBot.handleMessage(message);
-
-    // Send response back to Google Chat
-    res.json({
-      text: response.text,
-      thread_reply: response.threadReply,
-    });
-  } catch (error) {
-    console.error('Error processing webhook:', error);
-    res.status(500).json({
-      error: 'Webhook processing failed',
-      message: error.message,
     });
   }
 });

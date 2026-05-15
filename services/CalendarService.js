@@ -139,9 +139,70 @@ class CalendarService {
         },
       });
 
-      return response.data;
+      return {
+        success: true,
+        message: `Event "${eventData.title}" created successfully`,
+        eventId: response.data.id,
+        event: response.data,
+      };
     } catch (error) {
       console.error('Error creating event:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update an existing event
+   */
+  async updateEvent(eventId, eventData) {
+    try {
+      const response = await this.calendar.events.update({
+        calendarId: 'primary',
+        eventId: eventId,
+        requestBody: {
+          summary: eventData.title || undefined,
+          description: eventData.description || undefined,
+          start: eventData.startTime ? {
+            dateTime: new Date(eventData.startTime).toISOString(),
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          } : undefined,
+          end: eventData.endTime ? {
+            dateTime: new Date(eventData.endTime).toISOString(),
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          } : undefined,
+          attendees: eventData.attendees || undefined,
+        },
+      });
+
+      return {
+        success: true,
+        message: `Event updated successfully`,
+        eventId: response.data.id,
+        event: response.data,
+      };
+    } catch (error) {
+      console.error('Error updating event:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete an event
+   */
+  async deleteEvent(eventId) {
+    try {
+      await this.calendar.events.delete({
+        calendarId: 'primary',
+        eventId: eventId,
+      });
+
+      return {
+        success: true,
+        message: `Event deleted successfully`,
+        eventId: eventId,
+      };
+    } catch (error) {
+      console.error('Error deleting event:', error);
       throw error;
     }
   }

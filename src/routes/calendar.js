@@ -201,6 +201,78 @@ router.post('/create', authenticateUser, async (req, res) => {
 });
 
 /**
+ * Update an existing event
+ * PUT /calendar/update/:eventId
+ * Body: { title, startTime, endTime, description, attendees, userId }
+ */
+router.put('/update/:eventId', authenticateUser, async (req, res) => {
+  const { eventId } = req.params;
+  const { title, startTime, endTime, description, attendees } = req.body;
+
+  if (!eventId) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Event ID is required',
+    });
+  }
+
+  try {
+    const calendarService = new CalendarService(req.authToken);
+    const event = await calendarService.updateEvent(eventId, {
+      title,
+      startTime,
+      endTime,
+      description,
+      attendees,
+    });
+
+    res.json({
+      status: 'success',
+      userId: req.userId,
+      event,
+    });
+  } catch (error) {
+    console.error(`Error updating event ${eventId}:`, error);
+    res.status(500).json({
+      error: 'Failed to update event',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * Delete an event
+ * DELETE /calendar/delete/:eventId
+ */
+router.delete('/delete/:eventId', authenticateUser, async (req, res) => {
+  const { eventId } = req.params;
+
+  if (!eventId) {
+    return res.status(400).json({
+      error: 'Bad Request',
+      message: 'Event ID is required',
+    });
+  }
+
+  try {
+    const calendarService = new CalendarService(req.authToken);
+    const result = await calendarService.deleteEvent(eventId);
+
+    res.json({
+      status: 'success',
+      userId: req.userId,
+      result,
+    });
+  } catch (error) {
+    console.error(`Error deleting event ${eventId}:`, error);
+    res.status(500).json({
+      error: 'Failed to delete event',
+      message: error.message,
+    });
+  }
+});
+
+/**
  * Health check for calendar service
  * GET /calendar/health
  */

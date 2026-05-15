@@ -185,6 +185,131 @@ class DriveService {
     // Default: return recent files
     return await this.getRecentFiles(10);
   }
+
+  /**
+   * Create a new folder in Drive
+   */
+  async createFolder(folderName, parentFolderId = null) {
+    try {
+      const fileMetadata = {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+      };
+
+      if (parentFolderId) {
+        fileMetadata.parents = [parentFolderId];
+      }
+
+      const response = await this.drive.files.create({
+        resource: fileMetadata,
+        fields: 'id, name, webViewLink',
+      });
+
+      return {
+        success: true,
+        message: `Folder "${folderName}" created successfully`,
+        folderId: response.data.id,
+        folder: response.data,
+      };
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Upload a file to Drive
+   */
+  async uploadFile(filePath, fileName = null, parentFolderId = null) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+
+      const fileContent = fs.readFileSync(filePath);
+      const fileNameToUse = fileName || path.basename(filePath);
+
+      const fileMetadata = {
+        name: fileNameToUse,
+      };
+
+      if (parentFolderId) {
+        fileMetadata.parents = [parentFolderId];
+      }
+
+      const response = await this.drive.files.create({
+        resource: fileMetadata,
+        media: {
+          body: fileContent,
+        },
+        fields: 'id, name, mimeType, webViewLink',
+      });
+
+      return {
+        success: true,
+        message: `File "${fileNameToUse}" uploaded successfully`,
+        fileId: response.data.id,
+        file: response.data,
+      };
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a file or folder
+   */
+  async deleteFile(fileId) {
+    try {
+      await this.drive.files.delete({
+        fileId: fileId,
+      });
+
+      return {
+        success: true,
+        message: `File/folder deleted successfully`,
+        fileId: fileId,
+      };
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Share a file with others
+   */
+  async shareFile(fileId, emailAddresses, role = 'reader') {
+    try {
+      const permissions = [];
+
+      for (const email of emailAddresses) {
+        const response = await this.drive.permissions.create({
+          fileId: fileId,
+          requestBody: {
+            role: role, // 'reader', 'commenter', 'writer', 'organizer'
+            type: 'user',
+            emailAddress: email,
+          },
+        });
+        permissions.push(response.data);
+      }
+
+      return {
+        success: true,
+        message: `File shared with ${emailAddresses.length} user(s)`,
+        fileId: fileId,
+        permissions: permissions,
+      };
+    } catch (error) {
+      console.error('Error sharing file:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = DriveService;

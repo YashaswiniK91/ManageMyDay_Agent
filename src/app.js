@@ -7,6 +7,8 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const chatbotRoutes = require('./routes/chatbot');
 const calendarRoutes = require('./routes/calendar');
+const gmailRoutes = require('./routes/gmail');
+const driveRoutes = require('./routes/drive');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +22,8 @@ app.use(express.static('public'));
 app.use('/auth', authRoutes);
 app.use('/chatbot', chatbotRoutes);
 app.use('/calendar', calendarRoutes);
+app.use('/gmail', gmailRoutes);
+app.use('/drive', driveRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -30,7 +34,7 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     status: 'running',
-    name: 'AgenticAI Chatbot POC',
+    name: 'ManageMyDay Agent - AgenticAI Chatbot',
     version: '1.0.0',
     description: 'Agentic AI with Google Workspace Integration',
     endpoints: {
@@ -39,13 +43,38 @@ app.get('/', (req, res) => {
         initiate: '/auth/init',
         callback: '/auth/callback',
       },
-      chatbot: {
-        message: 'POST /chatbot/message',
-      },
       calendar: {
         today: 'GET /calendar/today',
         upcoming: 'GET /calendar/upcoming',
         byDate: 'GET /calendar/date?date=YYYY-MM-DD',
+        byRange: 'GET /calendar/range?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD',
+        create: 'POST /calendar/create',
+        update: 'PUT /calendar/update/:eventId',
+        delete: 'DELETE /calendar/delete/:eventId',
+      },
+      gmail: {
+        unread: 'GET /gmail/unread',
+        latest: 'GET /gmail/latest',
+        from: 'GET /gmail/from?senderEmail=email@gmail.com',
+        subject: 'GET /gmail/subject?subject=Meeting',
+        count: 'GET /gmail/count',
+        send: 'POST /gmail/send',
+        draft: 'POST /gmail/draft',
+        delete: 'DELETE /gmail/delete/:messageId',
+        markread: 'PUT /gmail/markread/:messageId',
+      },
+      drive: {
+        recent: 'GET /drive/recent',
+        search: 'GET /drive/search?query=report',
+        folder: 'GET /drive/folder?folderName=Documents',
+        count: 'GET /drive/count',
+        createFolder: 'POST /drive/folder/create',
+        upload: 'POST /drive/upload',
+        delete: 'DELETE /drive/delete/:fileId',
+        share: 'POST /drive/share',
+      },
+      chatbot: {
+        message: 'POST /chatbot/message',
       },
     },
     setup: 'See README.md for setup instructions',

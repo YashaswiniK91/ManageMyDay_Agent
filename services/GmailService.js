@@ -206,6 +206,128 @@ class GmailService {
     // Default: return latest emails
     return await this.getLatestEmails(5);
   }
+
+  /**
+   * Send an email
+   */
+  async sendEmail(emailData) {
+    try {
+      const { to, subject, body, cc = '', bcc = '' } = emailData;
+
+      // Create email message
+      const message = this._createMessage(to, subject, body, cc, bcc);
+
+      const response = await this.gmail.users.messages.send({
+        userId: 'me',
+        requestBody: {
+          raw: message,
+        },
+      });
+
+      return {
+        success: true,
+        message: `Email sent successfully to ${to}`,
+        messageId: response.data.id,
+      };
+    } catch (error) {
+      console.error('Error sending email:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Draft an email (save as draft without sending)
+   */
+  async draftEmail(emailData) {
+    try {
+      const { to, subject, body, cc = '', bcc = '' } = emailData;
+
+      // Create email message
+      const message = this._createMessage(to, subject, body, cc, bcc);
+
+      const response = await this.gmail.users.drafts.create({
+        userId: 'me',
+        requestBody: {
+          message: {
+            raw: message,
+          },
+        },
+      });
+
+      return {
+        success: true,
+        message: `Email drafted successfully`,
+        draftId: response.data.id,
+        messageId: response.data.message.id,
+      };
+    } catch (error) {
+      console.error('Error drafting email:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete an email
+   */
+  async deleteEmail(messageId) {
+    try {
+      await this.gmail.users.messages.delete({
+        userId: 'me',
+        id: messageId,
+      });
+
+      return {
+        success: true,
+        message: `Email deleted successfully`,
+        messageId: messageId,
+      };
+    } catch (error) {
+      console.error('Error deleting email:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Mark email as read
+   */
+  async markAsRead(messageId) {
+    try {
+      await this.gmail.users.messages.modify({
+        userId: 'me',
+        id: messageId,
+        requestBody: {
+          removeLabelIds: ['UNREAD'],
+        },
+      });
+
+      return {
+        success: true,
+        message: `Email marked as read`,
+        messageId: messageId,
+      };
+    } catch (error) {
+      console.error('Error marking email as read:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper: Create RFC 2822 formatted email message
+   */
+  _createMessage(to, subject, body, cc = '', bcc = '') {
+    const emailLines = [];
+    emailLines.push(`To: ${to}`);
+    emailLines.push(`Subject: ${subject}`);
+    if (cc) emailLines.push(`Cc: ${cc}`);
+    if (bcc) emailLines.push(`Bcc: ${bcc}`);
+    emailLines.push('Content-Type: text/plain; charset="UTF-8"');
+    emailLines.push('MIME-Version: 1.0');
+    emailLines.push('');
+    emailLines.push(body);
+
+    const email = emailLines.join('\r\n').trim();
+    return Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+  }
 }
 
 module.exports = GmailService;
