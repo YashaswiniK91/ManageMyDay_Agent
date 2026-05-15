@@ -5,9 +5,10 @@ const TokenStorage = require('../../utils/TokenStorage');
 
 const tokenStorage = new TokenStorage('memory');
 const SCOPES = [
-  'https://www.googleapis.com/auth/calendar.readonly',
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/drive',
 ];
 
 /**
@@ -16,10 +17,13 @@ const SCOPES = [
  */
 router.get('/init', (req, res) => {
   try {
-    const authUrl = getAuthorizationUrl(SCOPES);
+    const userId = req.query.userId || 'default-user';
+    const state = JSON.stringify({ userId });
+    const authUrl = getAuthorizationUrl(SCOPES, { state });
     res.json({
       status: 'authorization_initiated',
       authUrl,
+      userId,
       message: 'Visit the URL above to authorize the application',
     });
   } catch (error) {
@@ -36,6 +40,7 @@ router.get('/init', (req, res) => {
  */
 router.get('/callback', async (req, res) => {
   const code = req.query.code;
+  const state = req.query.state;
 
   if (!code) {
     return res.status(400).json({
@@ -45,9 +50,17 @@ router.get('/callback', async (req, res) => {
 
   try {
     const tokens = await getAccessToken(code, SCOPES);
-    
-    // For POC, use a simple user ID (in production, extract from token claims)
-    const userId = 'default-user';
+
+    let userId = 'default-user';
+    if (state) {
+      try {
+        const parsedState = JSON.parse(state);
+        userId = parsedState.userId || userId;
+      } catch (error) {
+        console.warn('Invalid OAuth state payload, falling back to default-user');
+      }
+    }
+
     await tokenStorage.saveToken(userId, tokens);
 
     res.json({

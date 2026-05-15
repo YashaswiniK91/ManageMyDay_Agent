@@ -8,7 +8,11 @@
 class TokenStorage {
   constructor(storageType = 'memory') {
     this.storageType = storageType;
-    this.tokens = new Map(); // In-memory storage for POC
+    // Share one in-memory map across all instances so routes see the same tokens.
+    if (!TokenStorage.sharedTokens) {
+      TokenStorage.sharedTokens = new Map();
+    }
+    this.tokens = TokenStorage.sharedTokens;
   }
 
   /**

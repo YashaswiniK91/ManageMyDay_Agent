@@ -90,10 +90,11 @@ const initializeChatBot = (authToken) => {
  * Parse Google Chat message format
  */
 const parseGoogleChatMessage = (googleChatEvent) => {
+  const userEmail = googleChatEvent.user?.email || '';
   const message = {
     text: googleChatEvent.message?.text || '',
-    userId: googleChatEvent.user?.email?.split('@')[0] || 'google-chat-user',
-    userEmail: googleChatEvent.user?.email || 'unknown@google.com',
+    userId: userEmail || 'google-chat-user',
+    userEmail: userEmail || 'unknown@google.com',
     userName: googleChatEvent.user?.displayName || 'Unknown User',
     threadId: googleChatEvent.message?.thread?.name || null,
     spaceId: googleChatEvent.space?.name || null,
@@ -222,9 +223,10 @@ router.post('/webhook', verifyGoogleChatSignature, async (req, res) => {
       let authToken = await tokenStorage.getToken(message.userId);
       
       if (!authToken) {
+        const authPath = `/auth/init?userId=${encodeURIComponent(message.userId)}`;
         // If no token, inform user they need to authenticate
         return res.json({
-          text: `Hello ${message.userName}! 👋\n\nTo use ManageMyDay Agent, please authenticate first:\n\n1. Visit: http://localhost:3000/auth/init\n2. Complete the OAuth flow\n3. Your token will be saved\n\nAfter that, you can use all features!`,
+          text: `Hello ${message.userName}! 👋\n\nTo use ManageMyDay Agent, please authenticate first:\n\n1. Visit: http://localhost:3000${authPath}\n2. Complete the OAuth flow\n3. Your token will be saved\n\nAfter that, you can use all features!`,
         });
       }
 
@@ -241,7 +243,7 @@ router.post('/webhook', verifyGoogleChatSignature, async (req, res) => {
     // Handle other event types (optional)
     if (googleChatEvent.type === 'ADDED_TO_SPACE') {
       return res.json({
-        text: `👋 Thanks for adding ManageMyDay Agent!\n\nI can help with:\n• 📅 Calendar (schedule, create events)\n• ✉️ Gmail (read, send emails)\n• 📁 Drive (files, folders)\n\nType "help" to see all commands!`,
+        text: `👋 Thanks for adding MMD-Bot!\n\nI can help with:\n• 📅 Calendar (schedule, create events)\n• ✉️ Gmail (read, send emails)\n• 📁 Drive (files, folders)\n\nType "help" to see all commands!`,
       });
     }
 
@@ -272,7 +274,7 @@ router.get('/webhook-config', (req, res) => {
       '1. Go to Google Chat and create a new space or select existing one',
       '2. Click Settings > Apps & integrations',
       '3. Click "Create new bot"',
-      '4. Name: ManageMyDay Agent',
+      '4. Name: MMD-Bot',
       '5. Avatar: (upload image)',
       '6. Go to Management > Webhook URLs',
       `7. Add webhook URL: ${webhookUrl}`,

@@ -29,11 +29,13 @@ const createOAuthClient = () => {
 /**
  * Get Authorization URL for user to grant access
  */
-const getAuthorizationUrl = (scopes) => {
+const getAuthorizationUrl = (scopes, options = {}) => {
   const auth = createOAuthClient();
   const authUrl = auth.generateAuthUrl({
     access_type: 'offline',
+    prompt: options.prompt || 'consent',
     scope: scopes,
+    state: options.state,
   });
   return authUrl;
 };
