@@ -24,7 +24,7 @@ class BaseAgent {
    * @param {string} options.systemPrompt  - System instruction for this agent
    * @param {string} [options.model]       - Gemini model name (default: gemini-1.5-flash)
    */
-  constructor({ name, systemPrompt, model = 'gemini-1.5-flash' }) {
+  constructor({ name, systemPrompt, model = 'gemini-2.5-flash' }) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error(

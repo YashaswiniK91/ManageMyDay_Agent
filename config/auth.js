@@ -12,17 +12,32 @@ const TOKEN_PATH = path.join(__dirname, '../token.json');
 
 // Initialize OAuth 2.0 Client
 const createOAuthClient = () => {
-  if (!fs.existsSync(CREDENTIALS_PATH)) {
-    throw new Error(`Credentials file not found at ${CREDENTIALS_PATH}. Please download from Google Cloud Console.`);
+  if (fs.existsSync(CREDENTIALS_PATH)) {
+    const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+    const { client_id, client_secret, redirect_uris } = credentials.installed || credentials.web;
+
+    return new google.auth.OAuth2(
+      client_id,
+      client_secret,
+      redirect_uris[0]
+    );
   }
 
-  const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
-  const { client_id, client_secret, redirect_uris } = credentials.installed || credentials.web;
+  // Fallback to .env for local development when credentials.json is absent.
+  const clientId = process.env.CLIENT_ID;
+  const clientSecret = process.env.CLIENT_SECRET;
+  const redirectUri = process.env.REDIRECT_URI;
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error(
+      `Missing OAuth configuration. Provide either ${CREDENTIALS_PATH} or set CLIENT_ID, CLIENT_SECRET, and REDIRECT_URI in .env.`
+    );
+  }
 
   return new google.auth.OAuth2(
-    client_id,
-    client_secret,
-    redirect_uris[0]
+    clientId,
+    clientSecret,
+    redirectUri
   );
 };
 
