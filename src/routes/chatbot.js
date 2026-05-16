@@ -1,13 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const crypto = require('crypto');
 const TokenStorage = require('../../utils/TokenStorage');
 const ChatBotHandler = require('../../handlers/ChatBotHandler');
-const CalendarService = require('../../services/CalendarService');
-const GmailService = require('../../services/GmailService');
-const DriveService = require('../../services/DriveService');
 
 const tokenStorage = new TokenStorage('memory');
+
+const GOOGLE_CHAT_EVENT = {
+  MESSAGE: 'MESSAGE',
+  ADDED_TO_SPACE: 'ADDED_TO_SPACE',
+  REMOVED_FROM_SPACE: 'REMOVED_FROM_SPACE',
+  CARD_CLICKED: 'CARD_CLICKED',
+};
 
 /**
  * Middleware to get user token and authenticate
@@ -42,48 +45,29 @@ const authenticateUser = async (req, res, next) => {
  * Ensures request came from Google Chat API
  */
 const verifyGoogleChatSignature = (req, res, next) => {
-  // For development, skip signature verification
-  // In production, implement proper verification
-  if (process.env.NODE_ENV === 'production') {
-    const signature = req.headers['x-goog-chat-request-token'];
-    if (!signature) {
+  const expectedToken = process.env.GOOGLE_CHAT_VERIFICATION_TOKEN;
+
+  // If no verification token is configured we allow the request for local development.
+  if (!expectedToken) {
+    return next();
+  }
+
+  const requestToken = req.headers['x-goog-chat-bot-token'];
+  if (!requestToken || requestToken !== expectedToken) {
       return res.status(401).json({
         error: 'Unauthorized',
-        message: 'Missing Google Chat request token',
+        message: 'Invalid Google Chat verification token',
       });
-    }
   }
+
   next();
 };
 
 /**
  * Initialize chatbot with all services
  */
-const initializeChatBot = (authToken) => {
-  const chatBot = new ChatBotHandler(authToken);
-  
-  try {
-    const calendarService = new CalendarService(authToken);
-    chatBot.registerService('calendar', calendarService);
-  } catch (error) {
-    console.error('Error initializing Calendar Service:', error);
-  }
-
-  try {
-    const gmailService = new GmailService(authToken);
-    chatBot.registerService('gmail', gmailService);
-  } catch (error) {
-    console.error('Error initializing Gmail Service:', error);
-  }
-
-  try {
-    const driveService = new DriveService(authToken);
-    chatBot.registerService('drive', driveService);
-  } catch (error) {
-    console.error('Error initializing Drive Service:', error);
-  }
-
-  return chatBot;
+const initializeChatBot = (authToken, userId) => {
+  return new ChatBotHandler(authToken, userId);
 };
 
 /**
@@ -91,9 +75,13 @@ const initializeChatBot = (authToken) => {
  */
 const parseGoogleChatMessage = (googleChatEvent) => {
   const userEmail = googleChatEvent.user?.email || '';
+  const messageText = googleChatEvent.message?.argumentText || googleChatEvent.message?.text || '';
+  const cleanedText = messageText.replace(/<users\/[\w-]+>/g, '').trim();
+  const derivedUserId = userEmail || googleChatEvent.user?.name || 'google-chat-user';
+
   const message = {
-    text: googleChatEvent.message?.text || '',
-    userId: userEmail || 'google-chat-user',
+    text: cleanedText,
+    userId: derivedUserId,
     userEmail: userEmail || 'unknown@google.com',
     userName: googleChatEvent.user?.displayName || 'Unknown User',
     threadId: googleChatEvent.message?.thread?.name || null,
@@ -110,6 +98,16 @@ const formatGoogleChatResponse = (botResponse) => {
   return {
     text: botResponse,
   };
+};
+
+const getBaseUrl = () => {
+  if (process.env.APP_BASE_URL) {
+    return process.env.APP_BASE_URL.replace(/\/$/, '');
+  }
+
+  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+  const host = process.env.WEBHOOK_HOST || 'localhost:3000';
+  return `${protocol}://${host}`;
 };
 
 /**
@@ -209,9 +207,17 @@ router.post('/webhook', verifyGoogleChatSignature, async (req, res) => {
   try {
     // Parse Google Chat event
     const googleChatEvent = req.body;
+
+    // Ignore messages sent by bots to prevent loops.
+    if (googleChatEvent.message?.sender?.type === 'BOT') {
+      return res.json({ text: '' });
+    }
     
     // Ignore message edits and other non-message events
-    if (googleChatEvent.type === 'MESSAGE' && googleChatEvent.message?.text) {
+    if (
+      googleChatEvent.type === GOOGLE_CHAT_EVENT.MESSAGE
+      && (googleChatEvent.message?.text || googleChatEvent.message?.argumentText)
+    ) {
       const message = parseGoogleChatMessage(googleChatEvent);
       
       console.log(`📨 Google Chat Message from ${message.userName}: ${message.text}`);
@@ -221,14 +227,15 @@ router.post('/webhook', verifyGoogleChatSignature, async (req, res) => {
       
       if (!authToken) {
         const authPath = `/auth/init?userId=${encodeURIComponent(message.userId)}`;
+        const baseUrl = getBaseUrl();
         // If no token, inform user they need to authenticate
         return res.json({
-          text: `Hello ${message.userName}! 👋\n\nTo use ManageMyDay Agent, please authenticate first:\n\n1. Visit: http://localhost:3000${authPath}\n2. Complete the OAuth flow\n3. Your token will be saved\n\nAfter that, you can use all features!`,
+          text: `Hello ${message.userName}!\n\nTo use ManageMyDay Agent, authenticate first:\n1. Open: ${baseUrl}${authPath}\n2. Complete Google OAuth\n3. Come back and send your request again`,
         });
       }
 
       // Initialize chatbot with services for this user
-      const chatBot = initializeChatBot(authToken);
+      const chatBot = initializeChatBot(authToken, message.userId);
 
       // Process the message
       const response = await chatBot.handleMessage(message);
@@ -238,10 +245,18 @@ router.post('/webhook', verifyGoogleChatSignature, async (req, res) => {
     }
 
     // Handle other event types (optional)
-    if (googleChatEvent.type === 'ADDED_TO_SPACE') {
+    if (googleChatEvent.type === GOOGLE_CHAT_EVENT.ADDED_TO_SPACE) {
+      const userId = googleChatEvent.user?.email || googleChatEvent.user?.name || 'google-chat-user';
+      const authPath = `/auth/init?userId=${encodeURIComponent(userId)}`;
+      const baseUrl = getBaseUrl();
+
       return res.json({
-        text: `👋 Thanks for adding MMD-Bot!\n\nI can help with:\n• 📅 Calendar (schedule, create events)\n• ✉️ Gmail (read, send emails)\n• 📁 Drive (files, folders)\n\nType "help" to see all commands!`,
+        text: `Thanks for adding ManageMyDay Agent.\n\nBefore first use, authenticate here:\n${baseUrl}${authPath}\n\nThen ask things like:\n- What's my schedule today?\n- Show unread emails\n- Find files named quarterly report`,
       });
+    }
+
+    if (googleChatEvent.type === GOOGLE_CHAT_EVENT.REMOVED_FROM_SPACE) {
+      return res.json({ text: 'Goodbye from ManageMyDay Agent.' });
     }
 
     // Default response
@@ -260,22 +275,18 @@ router.post('/webhook', verifyGoogleChatSignature, async (req, res) => {
  * Returns configuration for setting up Google Chat webhook
  */
 router.get('/webhook-config', (req, res) => {
-  const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-  const host = process.env.WEBHOOK_HOST || 'localhost:3000';
-  const webhookUrl = `${protocol}://${host}/chatbot/webhook`;
+  const webhookUrl = `${getBaseUrl()}/chatbot/webhook`;
 
   res.json({
     status: 'success',
     webhookUrl: webhookUrl,
     instructions: [
-      '1. Go to Google Chat and create a new space or select existing one',
-      '2. Click Settings > Apps & integrations',
-      '3. Click "Create new bot"',
-      '4. Name: MMD-Bot',
-      '5. Avatar: (upload image)',
-      '6. Go to Management > Webhook URLs',
-      `7. Add webhook URL: ${webhookUrl}`,
-      '8. Save and test!'
+      '1. Open Google Cloud Console > Google Chat API > Configuration',
+      '2. Choose App URL',
+      `3. Set endpoint URL: ${webhookUrl}`,
+      '4. Add a verification token and set GOOGLE_CHAT_VERIFICATION_TOKEN in .env',
+      '5. Publish app to your Workspace domain or test users',
+      '6. Add the app in Google Chat and send a message'
     ],
     features: [
       '📅 Calendar management',

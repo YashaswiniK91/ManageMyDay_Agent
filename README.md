@@ -6,8 +6,8 @@ A proof-of-concept agentic AI chatbot with integration to Google Workspace (Cale
 
 This project demonstrates how to build a chatbot that:
 - ✅ Integrates with Google Calendar to fetch events
-- ✅ Integrates with Gmail to read emails (coming soon)
-- ✅ Integrates with Google Drive to access files (coming soon)
+- ✅ Integrates with Gmail (read/send flows)
+- ✅ Integrates with Google Drive operations
 - ✅ Responds to messages in Google Chat
 - ✅ Uses natural language processing to understand user queries
 - ✅ Supports multi-user authentication via OAuth 2.0
@@ -202,6 +202,18 @@ You should see:
   ```
   Sends a message to the chatbot and gets a response.
 
+- **Google Chat App Webhook**
+  ```
+  POST /chatbot/webhook
+  ```
+  Receives Google Chat app events and routes them to the same agentic logic.
+
+- **Google Chat Webhook Config**
+  ```
+  GET /chatbot/webhook-config
+  ```
+  Returns the endpoint URL and setup checklist for Google Chat API configuration.
+
 ## Usage Examples
 
 ### Using Postman or cURL
@@ -254,17 +266,14 @@ AgenticAI/
 
 ### Current Features (✅ Implemented)
 - OAuth 2.0 authentication
-- Google Calendar integration (read-only)
-- Natural language intent detection
-- Basic chatbot responses
+- Google Calendar, Gmail, and Drive agent tools
+- Google Chat app webhook integration
+- Multi-user mapping using Google Chat user identity
+- Agentic natural language responses
 
 ### Coming Soon
-- Gmail integration
-- Google Drive integration
-- Google Chat webhook integration
 - Advanced NLP using Dialogflow or OpenAI
 - Multi-user token management with Firestore
-- Event creation via chatbot
 - Proactive notifications
 
 ## Troubleshooting

@@ -75,6 +75,9 @@ app.get('/', (req, res) => {
       },
       chatbot: {
         message: 'POST /chatbot/message',
+        webhook: 'POST /chatbot/webhook',
+        webhookConfig: 'GET /chatbot/webhook-config',
+        health: 'GET /chatbot/health',
       },
     },
     setup: 'See README.md for setup instructions',
