@@ -122,18 +122,26 @@ class CalendarService {
    */
   async createEvent(eventData) {
     try {
+      const summary = eventData.summary || eventData.title;
+      const startDateTime = eventData.start?.dateTime || eventData.startTime;
+      const endDateTime = eventData.end?.dateTime || eventData.endTime;
+      const timeZone =
+        eventData.start?.timeZone ||
+        eventData.end?.timeZone ||
+        Intl.DateTimeFormat().resolvedOptions().timeZone;
+
       const response = await this.calendar.events.insert({
         calendarId: 'primary',
         requestBody: {
-          summary: eventData.title,
+          summary: summary,
           description: eventData.description || '',
           start: {
-            dateTime: new Date(eventData.startTime).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            dateTime: this._toIsoDateTime(startDateTime),
+            timeZone: timeZone,
           },
           end: {
-            dateTime: new Date(eventData.endTime).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            dateTime: this._toIsoDateTime(endDateTime),
+            timeZone: timeZone,
           },
           attendees: eventData.attendees || [],
         },
@@ -156,19 +164,26 @@ class CalendarService {
    */
   async updateEvent(eventId, eventData) {
     try {
+      const startDateTime = eventData.start?.dateTime || eventData.startTime;
+      const endDateTime = eventData.end?.dateTime || eventData.endTime;
+      const timeZone =
+        eventData.start?.timeZone ||
+        eventData.end?.timeZone ||
+        Intl.DateTimeFormat().resolvedOptions().timeZone;
+
       const response = await this.calendar.events.update({
         calendarId: 'primary',
         eventId: eventId,
         requestBody: {
-          summary: eventData.title || undefined,
+          summary: eventData.summary || eventData.title || undefined,
           description: eventData.description || undefined,
-          start: eventData.startTime ? {
-            dateTime: new Date(eventData.startTime).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          start: startDateTime ? {
+            dateTime: this._toIsoDateTime(startDateTime),
+            timeZone: timeZone,
           } : undefined,
-          end: eventData.endTime ? {
-            dateTime: new Date(eventData.endTime).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          end: endDateTime ? {
+            dateTime: this._toIsoDateTime(endDateTime),
+            timeZone: timeZone,
           } : undefined,
           attendees: eventData.attendees || undefined,
         },
@@ -225,6 +240,25 @@ class CalendarService {
       organizer: event.organizer?.email || '',
       attendees: (event.attendees || []).map(a => a.email),
     }));
+  }
+
+  _toIsoDateTime(value) {
+    if (!value) {
+      throw new Error('Missing date-time value');
+    }
+
+    if (value instanceof Date) {
+      if (isNaN(value.getTime())) {
+        throw new Error('Invalid time value');
+      }
+      return value.toISOString();
+    }
+
+    const parsed = new Date(String(value));
+    if (isNaN(parsed.getTime())) {
+      throw new Error(`Invalid time value: ${value}`);
+    }
+    return parsed.toISOString();
   }
 
   /**

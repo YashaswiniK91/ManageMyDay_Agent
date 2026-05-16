@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ManageMyDay Agent</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #1e1f20;
+      --surface: #2d2e30;
+      --surface2: #3c3c3c;
+      --border: #444746;
+      --text: #e3e3e3;
+      --text-muted: #9aa0a6;
+      --accent: #8ab4f8;
+      --accent-hover: #aecbfa;
+      --user-bubble: #004a77;
+      --bot-bubble: #2d2e30;
+      --input-bg: #2d2e30;
+      --send-btn: #8ab4f8;
+      --send-btn-hover: #aecbfa;
+      --scrollbar: #444;
+      --danger: #f28b82;
+      --success: #81c995;
+    }
+
+    body {
+      font-family: 'Google Sans', 'Segoe UI', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ──────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #4285f4, #34a853, #fbbc05, #ea4335);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: bold;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: 0.2px;
+    }
+
+    header h1 span {
+      color: var(--accent);
+    }
+
+    .header-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #userId-display {
+      font-size: 13px;
+      color: var(--text-muted);
+      background: var(--surface);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .btn-small {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .btn-small:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── Main area ────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Welcome screen ───────────────────────────────────────────── */
+    #welcome {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 40px;
+      text-align: center;
+    }
+
+    #welcome .gem-icon {
+      width: 72px;
+      height: 72px;
+      background: linear-gradient(135deg, #4285f4 0%, #8ab4f8 50%, #34a853 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      margin-bottom: 8px;
+      animation: pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(138,180,248,0.3); }
+      50% { box-shadow: 0 0 0 16px rgba(138,180,248,0); }
+    }
+
+    #welcome h2 {
+      font-size: 28px;
+      font-weight: 400;
+      color: var(--text);
+    }
+
+    #welcome p {
+      font-size: 15px;
+      color: var(--text-muted);
+      max-width: 480px;
+      line-height: 1.6;
+    }
+
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 12px;
+    }
+
+    .suggestion-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: 24px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .suggestion-chip:hover {
+      background: var(--surface2);
+      border-color: var(--accent);
+    }
+
+    .suggestion-chip .chip-icon {
+      font-size: 15px;
+    }
+
+    /* ── Chat messages ────────────────────────────────────────────── */
+    #chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 0;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    #chat-area::-webkit-scrollbar { width: 6px; }
+    #chat-area::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+
+    .msg-row {
+      display: flex;
+      padding: 4px 24px;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .msg-row.user { justify-content: flex-end; }
+    .msg-row.bot  { justify-content: flex-start; flex-direction: column; }
+
+    /* Bot label */
+    .bot-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      padding-left: 4px;
+    }
+
+    .bot-avatar {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #4285f4, #34a853);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .bot-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: 18px;
+      font-size: 14.5px;
+      line-height: 1.65;
+      max-width: 72%;
+      word-wrap: break-word;
+    }
+
+    .msg-row.user .bubble {
+      background: var(--user-bubble);
+      color: #e8f0fe;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg-row.bot .bubble {
+      background: transparent;
+      color: var(--text);
+      max-width: 100%;
+      padding: 0 4px;
+    }
+
+    /* Markdown-like formatting inside bot bubble */
+    .bubble strong { color: var(--accent-hover); font-weight: 600; }
+    .bubble em { color: var(--text-muted); font-style: italic; }
+    .bubble code {
+      background: var(--surface2);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+    }
+    .bubble pre {
+      background: var(--surface2);
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+    .bubble pre code { background: transparent; padding: 0; }
+    .bubble ul, .bubble ol { padding-left: 20px; margin: 6px 0; }
+    .bubble li { margin: 3px 0; }
+    .bubble a { color: var(--accent); text-decoration: none; }
+    .bubble a:hover { text-decoration: underline; }
+    .bubble hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+
+    /* ── Auth banner ──────────────────────────────────────────────── */
+    #auth-banner {
+      display: none;
+      background: linear-gradient(90deg, rgba(66,133,244,0.15), rgba(52,168,83,0.15));
+      border: 1px solid rgba(138,180,248,0.4);
+      color: var(--text);
+      padding: 12px 20px;
+      border-radius: 10px;
+      margin: 12px 24px;
+      font-size: 13.5px;
+      max-width: 860px;
+      width: calc(100% - 48px);
+      margin-left: auto;
+      margin-right: auto;
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #auth-banner a {
+      color: var(--accent);
+      font-weight: 500;
+      text-decoration: underline;
+    }
+
+    /* ── Typing indicator ─────────────────────────────────────────── */
+    #typing {
+      display: none;
+      padding: 4px 24px;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .typing-dots {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      padding: 10px 4px;
+    }
+
+    .typing-dots span {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: bounce 1.3s ease-in-out infinite;
+      opacity: 0.7;
+    }
+
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-8px); }
+    }
+
+    /* ── Bottom input bar ─────────────────────────────────────────── */
+    .input-area {
+      flex-shrink: 0;
+      padding: 16px 24px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .input-box {
+      width: 100%;
+      max-width: 860px;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      display: flex;
+      align-items: flex-end;
+      padding: 10px 14px 10px 20px;
+      gap: 10px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input-box:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(138,180,248,0.18);
+    }
+
+    #message-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 15px;
+      resize: none;
+      max-height: 160px;
+      min-height: 24px;
+      line-height: 1.5;
+      padding: 2px 0;
+      font-family: inherit;
+    }
+
+    #message-input::placeholder { color: var(--text-muted); }
+
+    #send-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--send-btn);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    #send-btn:hover { background: var(--send-btn-hover); transform: scale(1.05); }
+    #send-btn:disabled { background: var(--surface2); cursor: not-allowed; transform: none; }
+
+    #send-btn svg { fill: #1e1f20; }
+
+    .input-hint {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* ── Toast notifications ──────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface2);
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      z-index: 100;
+      border: 1px solid var(--border);
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── User ID modal ────────────────────────────────────────────── */
+    #user-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      width: 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-box h2 { font-size: 20px; font-weight: 500; }
+    .modal-box p  { font-size: 13.5px; color: var(--text-muted); line-height: 1.5; }
+
+    .modal-box input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .modal-box input:focus { border-color: var(--accent); }
+
+    .modal-box button {
+      background: var(--accent);
+      color: #1e1f20;
+      border: none;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .modal-box button:hover { background: var(--accent-hover); }
+
+    /* ── Responsive ───────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      header { padding: 12px 16px; }
+      .msg-row { padding: 4px 12px; }
+      .input-area { padding: 12px 12px 18px; }
+      #welcome h2 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── User ID modal ──────────────────────────────────────────────── -->
+<div id="user-modal">
+  <div class="modal-box">
+    <div class="logo" style="width:48px;height:48px;font-size:24px;margin:0 auto;">✦</div>
+    <h2>Welcome to ManageMyDay</h2>
+    <p>Enter a user ID to identify your session. Use the same ID after completing Google OAuth.</p>
+    <input id="modal-userid" type="text" placeholder="e.g. test-user-yashu" />
+    <button id="modal-start">Get Started</button>
+  </div>
+</div>
+
+<!-- ── Header ─────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">✦</div>
+  <h1>ManageMyDay <span>Agent</span></h1>
+  <div class="header-actions">
+    <span id="userId-display">Not signed in</span>
+    <button class="btn-small" id="auth-btn" title="Authenticate with Google">Sign in</button>
+    <button class="btn-small" id="clear-btn" title="Clear conversation">Clear</button>
+  </div>
+</header>
+
+<!-- ── Main ───────────────────────────────────────────────────────── -->
+<main>
+  <!-- Welcome screen -->
+  <div id="welcome">
+    <div class="gem-icon">✦</div>
+    <h2>Hello! How can I help you?</h2>
+    <p>I can manage your Google Calendar, Gmail, and Drive. Ask me anything about your day.</p>
+    <div class="suggestions">
+      <div class="suggestion-chip" data-msg="What's my schedule today?">
+        <span class="chip-icon">📅</span> What's my schedule today?
+      </div>
+      <div class="suggestion-chip" data-msg="Show my unread emails">
+        <span class="chip-icon">✉️</span> Show unread emails
+      </div>
+      <div class="suggestion-chip" data-msg="Show my recent Drive files">
+        <span class="chip-icon">📁</span> Recent Drive files
+      </div>
+      <div class="suggestion-chip" data-msg="What meetings do I have this week?">
+        <span class="chip-icon">🗓️</span> This week's meetings
+      </div>
+      <div class="suggestion-chip" data-msg="How many unread emails do I have?">
+        <span class="chip-icon">📬</span> Unread email count
+      </div>
+      <div class="suggestion-chip" data-msg="Create an event called Team Sync tomorrow at 10 AM">
+        <span class="chip-icon">➕</span> Create event
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth banner -->
+  <div id="auth-banner">
+    🔐 <span id="auth-msg">You need to authenticate first.</span>
+    <a id="auth-link" href="#" target="_blank">Click here to sign in</a>
+  </div>
+
+  <!-- Chat messages -->
+  <div id="chat-area"></div>
+
+  <!-- Typing indicator -->
+  <div id="typing">
+    <div class="bot-label">
+      <div class="bot-avatar">✦</div>
+      <span class="bot-name">ManageMyDay Agent</span>
+    </div>
+    <div class="typing-dots">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</main>
+
+<!-- ── Input bar ───────────────────────────────────────────────────── -->
+<div class="input-area">
+  <div class="input-box">
+    <textarea id="message-input" rows="1" placeholder="Ask about your calendar, emails, or files…"></textarea>
+    <button id="send-btn" disabled title="Send message">
+      <svg viewBox="0 0 24 24" width="18" height="18">
+        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+      </svg>
+    </button>
+  </div>
+  <span class="input-hint">ManageMyDay can make mistakes. Verify important information.</span>
+</div>
+
+<!-- ── Toast ───────────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<script>
+  /* ── State ────────────────────────────────────────────────────── */
+  let userId = '';
+  let isTyping = false;
+
+  const $ = id => document.getElementById(id);
+
+  /* ── Elements ─────────────────────────────────────────────────── */
+  const chatArea   = $('chat-area');
+  const welcome    = $('welcome');
+  const typingEl   = $('typing');
+  const inputEl    = $('message-input');
+  const sendBtn    = $('send-btn');
+  const authBanner = $('auth-banner');
+  const authLink   = $('auth-link');
+  const authMsg    = $('auth-msg');
+  const userModal  = $('user-modal');
+  const modalInput = $('modal-userid');
+  const modalStart = $('modal-start');
+  const userDisp   = $('userId-display');
+
+  /* ── Modal ────────────────────────────────────────────────────── */
+  modalInput.addEventListener('keydown', e => { if (e.key === 'Enter') startSession(); });
+  modalStart.addEventListener('click', startSession);
+
+  function startSession() {
+    const val = modalInput.value.trim();
+    if (!val) { modalInput.style.borderColor = 'var(--danger)'; return; }
+    userId = val;
+    userDisp.textContent = userId;
+    userModal.style.display = 'none';
+    inputEl.focus();
+  }
+
+  /* ── Auth button ──────────────────────────────────────────────── */
+  $('auth-btn').addEventListener('click', async () => {
+    if (!userId) { showToast('Enter a user ID first'); return; }
+    const url = `/auth/init?userId=${encodeURIComponent(userId)}`;
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.authUrl) {
+        window.open(data.authUrl, '_blank');
+        showToast('Complete sign-in in the new tab, then come back.');
+      }
+    } catch {
+      showToast('Failed to start auth flow.');
+    }
+  });
+
+  /* ── Clear ────────────────────────────────────────────────────── */
+  $('clear-btn').addEventListener('click', async () => {
+    chatArea.innerHTML = '';
+    chatArea.style.display = 'none';
+    welcome.style.display = 'flex';
+    authBanner.style.display = 'none';
+    // Reset conversation history on server
+    if (userId) {
+      try {
+        await fetch(`/chatbot/message?userId=${encodeURIComponent(userId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: '/reset' }),
+        });
+      } catch {}
+    }
+    showToast('Conversation cleared');
+  });
+
+  /* ── Suggestions ──────────────────────────────────────────────── */
+  document.querySelectorAll('.suggestion-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const msg = chip.dataset.msg;
+      inputEl.value = msg;
+      autoResize();
+      sendMessage();
+    });
+  });
+
+  /* ── Input resize & enable/disable send ──────────────────────── */
+  inputEl.addEventListener('input', () => {
+    autoResize();
+    sendBtn.disabled = !inputEl.value.trim();
+  });
+
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!sendBtn.disabled) sendMessage();
+    }
+  });
+
+  function autoResize() {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px';
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  /* ── Send message ─────────────────────────────────────────────── */
+  async function sendMessage() {
+    const text = inputEl.value.trim();
+    if (!text || isTyping) return;
+    if (!userId) { showToast('Please set a user ID first'); return; }
+
+    // Show chat area, hide welcome
+    if (welcome.style.display !== 'none') {
+      welcome.style.display = 'none';
+      chatArea.style.display = 'flex';
+    }
+
+    authBanner.style.display = 'none';
+
+    appendUserMessage(text);
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    sendBtn.disabled = true;
+    setTyping(true);
+
+    try {
+      const res = await fetch(`/chatbot/message?userId=${encodeURIComponent(userId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = await res.json();
+
+      if (res.status === 401) {
+        // Need authentication
+        const initRes = await fetch(`/auth/init?userId=${encodeURIComponent(userId)}`);
+        const initData = await initRes.json();
+        authLink.href = initData.authUrl || '#';
+        authMsg.textContent = 'Please authenticate to use ManageMyDay Agent.';
+        authBanner.style.display = 'flex';
+        setTyping(false);
+        return;
+      }
+
+      const botText = data.botResponse || data.text || data.message || JSON.stringify(data);
+      setTyping(false);
+
+      // Check if bot response contains auth link
+      if (botText.toLowerCase().includes('authenticate') && botText.includes('/auth/init')) {
+        const initRes = await fetch(`/auth/init?userId=${encodeURIComponent(userId)}`);
+        const initData = await initRes.json();
+        authLink.href = initData.authUrl || '#';
+        authMsg.textContent = 'Sign in to continue using ManageMyDay Agent.';
+        authBanner.style.display = 'flex';
+        appendBotMessage("I need to access your Google account to help you. Please sign in using the banner above, then ask again.");
+        return;
+      }
+
+      appendBotMessage(botText);
+
+    } catch (err) {
+      setTyping(false);
+      appendBotMessage('⚠️ Unable to reach the server. Make sure the app is running.');
+    }
+  }
+
+  /* ── Append messages ──────────────────────────────────────────── */
+  function appendUserMessage(text) {
+    const row = document.createElement('div');
+    row.className = 'msg-row user';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    chatArea.appendChild(row);
+    scrollBottom();
+  }
+
+  function appendBotMessage(text) {
+    const row = document.createElement('div');
+    row.className = 'msg-row bot';
+
+    const label = document.createElement('div');
+    label.className = 'bot-label';
+    label.innerHTML = `<div class="bot-avatar">✦</div><span class="bot-name">ManageMyDay Agent</span>`;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = renderMarkdown(text);
+
+    row.appendChild(label);
+    row.appendChild(bubble);
+    chatArea.appendChild(row);
+    scrollBottom();
+  }
+
+  /* ── Simple markdown renderer ─────────────────────────────────── */
+  function renderMarkdown(text) {
+    return text
+      // Escape HTML first
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      // Code blocks
+      .replace(/```[\s\S]*?```/g, m => {
+        const code = m.slice(3, -3).replace(/^\w*\n/, '');
+        return `<pre><code>${code}</code></pre>`;
+      })
+      // Inline code
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      // Bold
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      // Italic
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      // Headers
+      .replace(/^### (.+)$/gm, '<strong>$1</strong>')
+      .replace(/^## (.+)$/gm, '<strong style="font-size:1.1em">$1</strong>')
+      .replace(/^# (.+)$/gm, '<strong style="font-size:1.2em">$1</strong>')
+      // Horizontal rule
+      .replace(/^---$/gm, '<hr>')
+      // Bullet points
+      .replace(/^[\-\*] (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+      // Numbered list
+      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+      // Line breaks
+      .replace(/\n/g, '<br>');
+  }
+
+  /* ── Typing indicator ─────────────────────────────────────────── */
+  function setTyping(show) {
+    isTyping = show;
+    typingEl.style.display = show ? 'block' : 'none';
+    if (show) scrollBottom();
+  }
+
+  /* ── Scroll to bottom ─────────────────────────────────────────── */
+  function scrollBottom() {
+    requestAnimationFrame(() => {
+      chatArea.scrollTop = chatArea.scrollHeight;
+    });
+  }
+
+  /* ── Toast ────────────────────────────────────────────────────── */
+  function showToast(msg, duration = 3000) {
+    const toast = $('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), duration);
+  }
+
+  /* ── Focus modal input on load ────────────────────────────────── */
+  window.addEventListener('load', () => modalInput.focus());
+</script>
+</body>
+</html>

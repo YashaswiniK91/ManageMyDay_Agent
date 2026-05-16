@@ -145,6 +145,28 @@ const CALENDAR_TOOL_DECLARATIONS = [
   },
 ];
 
+// ─── Date parsing helper ──────────────────────────────────────────────────────
+
+/**
+ * Robustly parse a date-time string into a JS Date object.
+ * Handles ISO 8601 with/without T, space-separated, and common variants.
+ */
+function parseDateTime(raw) {
+  if (!raw) throw new Error('Missing date-time value');
+
+  // Normalise: replace space between date and time with T
+  let s = String(raw).trim().replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/, '$1T$2');
+
+  // Append seconds if missing (e.g. "2026-05-18T13:00" → "2026-05-18T13:00:00")
+  if (/T\d{2}:\d{2}$/.test(s)) s += ':00';
+
+  const d = new Date(s);
+  if (isNaN(d.getTime())) {
+    throw new Error(`Invalid date-time: "${raw}" (normalised: "${s}")`);
+  }
+  return d;
+}
+
 // ─── Tool Executor ────────────────────────────────────────────────────────────
 
 class CalendarToolExecutor {
@@ -167,25 +189,23 @@ class CalendarToolExecutor {
         return await this.service.getEventsByDateRange(args.startDate, args.endDate);
 
       case 'create_calendar_event': {
-        // Build the event data object expected by CalendarService
-        const endDateTime = args.endDateTime || (() => {
-          const end = new Date(args.startDateTime);
-          end.setHours(end.getHours() + 1);
-          return end.toISOString();
-        })();
+        console.log('[CalendarTools] create_calendar_event args:', JSON.stringify(args));
+        const startDt = parseDateTime(args.startDateTime);
 
+        let endDt;
+        if (args.endDateTime) {
+          endDt = parseDateTime(args.endDateTime);
+        } else {
+          endDt = new Date(startDt.getTime() + 60 * 60 * 1000); // +1 hour
+        }
+
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const eventData = {
           summary: args.title,
           description: args.description || '',
           location: args.location || '',
-          start: {
-            dateTime: new Date(args.startDateTime).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          },
-          end: {
-            dateTime: new Date(endDateTime).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          },
+          start: { dateTime: startDt.toISOString(), timeZone: tz },
+          end:   { dateTime: endDt.toISOString(),   timeZone: tz },
           attendees: (args.attendees || []).map(email => ({ email })),
         };
 
@@ -198,17 +218,12 @@ class CalendarToolExecutor {
       case 'update_calendar_event': {
         const updates = {};
         if (args.title) updates.summary = args.title;
+        const tz2 = Intl.DateTimeFormat().resolvedOptions().timeZone;
         if (args.startDateTime) {
-          updates.start = {
-            dateTime: new Date(args.startDateTime).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          };
+          updates.start = { dateTime: parseDateTime(args.startDateTime).toISOString(), timeZone: tz2 };
         }
         if (args.endDateTime) {
-          updates.end = {
-            dateTime: new Date(args.endDateTime).toISOString(),
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          };
+          updates.end = { dateTime: parseDateTime(args.endDateTime).toISOString(), timeZone: tz2 };
         }
         if (args.description) updates.description = args.description;
         return await this.service.updateEvent(args.eventId, updates);

@@ -16,6 +16,8 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const MAX_TOOL_ROUNDS = 10; // Prevent infinite loops
+const DEFAULT_MODEL = 'gemini-2.0-flash-lite';
+const DEFAULT_FALLBACK_MODELS = ['gemini-2.5-flash-lite', 'gemini-pro-latest'];
 
 class BaseAgent {
   /**
@@ -24,7 +26,7 @@ class BaseAgent {
    * @param {string} options.systemPrompt  - System instruction for this agent
    * @param {string} [options.model]       - Gemini model name (default: gemini-1.5-flash)
    */
-  constructor({ name, systemPrompt, model = 'gemini-2.5-flash' }) {
+  constructor({ name, systemPrompt, model }) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error(
@@ -35,7 +37,8 @@ class BaseAgent {
 
     this.name = name;
     this.systemPrompt = systemPrompt;
-    this.model = model;
+    this.model = model || process.env.GEMINI_MODEL || DEFAULT_MODEL;
+    this.fallbackModels = this._getFallbackModels();
 
     this._genAI = new GoogleGenerativeAI(apiKey);
 
@@ -70,15 +73,6 @@ class BaseAgent {
    * @returns {{ response: string, history: Array }}
    */
   async run(userMessage, history = []) {
-    const generativeModel = this._genAI.getGenerativeModel({
-      model: this.model,
-      systemInstruction: this.systemPrompt,
-      tools:
-        this._toolDeclarations.length > 0
-          ? [{ functionDeclarations: this._toolDeclarations }]
-          : undefined,
-    });
-
     // Build conversation history plus current user turn
     const contents = [
       ...history,
@@ -92,10 +86,10 @@ class BaseAgent {
 
       let result;
       try {
-        result = await generativeModel.generateContent({ contents });
+        result = await this._generateContentWithFallback(contents);
       } catch (err) {
         console.error(`[${this.name}] Gemini API error:`, err.message);
-        throw err;
+        throw this._toFriendlyError(err);
       }
 
       const candidate = result.response.candidates?.[0];
@@ -163,6 +157,78 @@ class BaseAgent {
   /** Returns a new empty conversation history array */
   newHistory() {
     return [];
+  }
+
+  _getFallbackModels() {
+    const envFallbacks = (process.env.GEMINI_FALLBACK_MODELS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const candidates = envFallbacks.length > 0 ? envFallbacks : DEFAULT_FALLBACK_MODELS;
+    return Array.from(new Set(candidates.filter(m => m && m !== this.model)));
+  }
+
+  _createGenerativeModel(modelName) {
+    return this._genAI.getGenerativeModel({
+      model: modelName,
+      systemInstruction: this.systemPrompt,
+      tools:
+        this._toolDeclarations.length > 0
+          ? [{ functionDeclarations: this._toolDeclarations }]
+          : undefined,
+    });
+  }
+
+  async _generateContentWithFallback(contents) {
+    const modelOrder = [this.model, ...this.fallbackModels];
+    let lastError;
+
+    for (const modelName of modelOrder) {
+      try {
+        const model = this._createGenerativeModel(modelName);
+        const result = await model.generateContent({ contents });
+
+        if (modelName !== this.model) {
+          console.warn(`[${this.name}] Switched model fallback: ${this.model} -> ${modelName}`);
+        }
+
+        return result;
+      } catch (err) {
+        lastError = err;
+        const retryable = this._isRetryableModelError(err);
+        if (!retryable || modelName === modelOrder[modelOrder.length - 1]) {
+          break;
+        }
+        console.warn(`[${this.name}] Model ${modelName} failed (${err.message}). Trying next fallback...`);
+      }
+    }
+
+    throw lastError || new Error('Failed to generate response from Gemini API');
+  }
+
+  _isRetryableModelError(err) {
+    const msg = String(err?.message || '').toLowerCase();
+    return (
+      msg.includes('429') ||
+      msg.includes('too many requests') ||
+      msg.includes('quota') ||
+      msg.includes('resource exhausted') ||
+      msg.includes('not found') ||
+      msg.includes('unsupported') ||
+      msg.includes('invalid model')
+    );
+  }
+
+  _toFriendlyError(err) {
+    const msg = String(err?.message || 'Unknown error');
+    const lower = msg.toLowerCase();
+
+    if (lower.includes('429') || lower.includes('too many requests') || lower.includes('quota')) {
+      return new Error('Gemini quota limit reached for current model. Please retry shortly or switch to a lower-cost model.');
+    }
+
+    return err instanceof Error ? err : new Error(msg);
   }
 }
 
