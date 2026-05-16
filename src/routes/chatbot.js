@@ -174,11 +174,8 @@ router.post('/message', authenticateUser, async (req, res) => {
   }
 
   try {
-    // Initialize chatbot with all services
-    const chatBot = initializeChatBot(req.authToken);
-    
-    // Process message
-    const message = { text, thread: req.body.thread };
+    const chatBot = new ChatBotHandler(req.authToken, req.userId);
+    const message = { text, userId: req.userId, thread: req.body.thread };
     const response = await chatBot.handleMessage(message);
 
     res.json({
